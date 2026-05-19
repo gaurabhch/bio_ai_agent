@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+langgraph
+langchain
+groq
+sentence-transformers
+torch
+sqlalchemy
+asyncpg
+psycopg2-binary
+redis
+pydantic
+python-dotenv
+httpx
+numpy
+pgvector
