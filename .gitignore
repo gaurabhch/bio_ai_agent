@@ -1,0 +1,7 @@
+test.txt
+test_rag.py
+guradrails_req.docx
+.env
+
+__pycache__/
+.vscode/
