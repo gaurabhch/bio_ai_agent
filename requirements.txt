@@ -9,7 +9,7 @@ langgraph>=0.2.60,<0.3.0
 groq>=0.24.0,<0.25.0
 
 # Embeddings — lightweight ONNX, replaces torch+sentence-transformers
-fastembed
+fastembed==0.3.6
 
 # Database
 sqlalchemy>=2.0.0
