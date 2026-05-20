@@ -9,6 +9,7 @@ load_dotenv(override=True)
 # Pipeline 2 MUST use the exact same model to embed user queries.
 # If you change this, re-embed every row in medical_knowledge first.
 EMBEDDING_MODEL  = "all-MiniLM-L6-v2"
+EMBEDDING_MODEL_FAST = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]

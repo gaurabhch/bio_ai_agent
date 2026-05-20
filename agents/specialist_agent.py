@@ -1,15 +1,12 @@
-# agents/specialist_agent.py
-# Generic specialist agent — one class handles ALL domains.
-# Domain is passed as a parameter from config so no duplication exists.
-#
+
 # 4-step workflow per agent:
-#   A — Embed the rewritten query (same model as Pipeline 1 — CRITICAL)
-#   B — PGVector retrieval (filtered by domain + pcos_general)
-#   C — Assemble 5-component prompt
-#   D — Groq generation → raw_response
+# A — Embed the rewritten query (same model as Pipeline 1 — CRITICAL)
+# B — PGVector retrieval (filtered by domain + pcos_general)
+# C — Assemble 5-component prompt
+# D — Groq generation → raw_response
 
 from groq import AsyncGroq
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.state import AgentState
@@ -24,36 +21,31 @@ class SpecialistAgent:
 
     Usage (in graph.py):
         pcos_mental_health_agent = SpecialistAgent(domain="pcos_mental_health", embedder=embedder)
-        pcos_nutrition_agent     = SpecialistAgent(domain="pcos_nutrition",      embedder=embedder)
-        # one instance per domain, all sharing the same embedder
+        pcos_nutrition_agent     = SpecialistAgent(domain="pcos_nutrition", embedder=embedder)
 
-    The embedder MUST be the exact same SentenceTransformer model used in
-    Pipeline 1 (controlled by EMBEDDING_MODEL in config.py).
+    One instance per domain, all sharing the same embedder.
     """
 
     def __init__(
         self,
-        domain  : str,
-        embedder: SentenceTransformer,
+        domain: str,
+        embedder: TextEmbedding,
     ) -> None:
-        self.domain         = domain
-        self.embedder       = embedder
+        self.domain = domain
+        self.embedder = embedder
         self._system_prompt = build_system_prompt(domain)
 
     async def run(
         self,
-        state     : AgentState,
+        state: AgentState,
         groq_client: AsyncGroq,
-        db_session : AsyncSession,
+        db_session: AsyncSession,
     ) -> AgentState:
         """
         Execute the 4-step RAG workflow and return an updated AgentState.
         """
-        # ── Step A: Embed the rewritten query ───────────────────────────────
-        # CRITICAL: Must use the exact same model as Pipeline 1 Step 4.
         query_embedding: list[float] = self._embed_query(state["rewritten_query"])
 
-        # ── Step B: PGVector retrieval ───────────────────────────────────────
         chunks: list[dict] = await retrieve_chunks(
             query_embedding=query_embedding,
             domain=self.domain,
@@ -61,33 +53,24 @@ class SpecialistAgent:
         )
         confidence = self._compute_confidence(chunks)
 
-        # ── Step C: Prompt assembly ──────────────────────────────────────────
         user_prompt = assemble_prompt(state, chunks)
-
-        # ── Step D: Groq generation ──────────────────────────────────────────
         raw_response = await self._generate(user_prompt, groq_client)
 
         return {
             **state,
             "retrieved_context": chunks,
-            "raw_response"     : raw_response,
-            "agent_node_used"  : f"{self.domain}_agent",
-            "confidence_score" : confidence,
+            "raw_response": raw_response,
+            "agent_node_used": f"{self.domain}_agent",
+            "confidence_score": confidence,
         }
-
-    # ── Private helpers ──────────────────────────────────────────────────────
 
     def _embed_query(self, query: str) -> list[float]:
         """
-        Embed a single query string using the locked embedding model.
-        normalize_embeddings=True is non-negotiable — matches Pipeline 1.
+        Embed a single query string using fastembed.
+        Returns one normalized vector as a plain Python list.
         """
-        vectors = self.embedder.encode(
-            [query],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        return vectors[0].tolist()
+        vector = next(self.embedder.embed([query]))
+        return vector.tolist()
 
     async def _generate(
         self,
@@ -103,7 +86,7 @@ class SpecialistAgent:
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": self._system_prompt},
-                    {"role": "user",   "content": user_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.4,
                 max_tokens=500,
@@ -116,7 +99,7 @@ class SpecialistAgent:
     def _compute_confidence(self, chunks: list[dict]) -> float:
         """
         Simple confidence score from the top chunk similarity.
-        0.0 → no chunks returned.  1.0 → perfect cosine similarity.
+        0.0 → no chunks returned. 1.0 → perfect cosine similarity.
         """
         if not chunks:
             return 0.0
