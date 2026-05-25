@@ -1,6 +1,7 @@
 # Core API
 fastapi
 uvicorn[standard]
+jinja2
 
 # Agent graph 
 langgraph>=0.2.60,<0.3.0
