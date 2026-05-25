@@ -11,6 +11,12 @@
 #   GET  /chat/stream  → SSE streaming of final_response word by word
 #   GET  /health       → liveness probe
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+
 import asyncio
 import json
 import ssl
@@ -87,6 +93,7 @@ async def lifespan(app: FastAPI):
     await short_term_memory.close()
     await engine.dispose()
 
+BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(
     title="BioCanvas PCOS AI Agent",
@@ -101,6 +108,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount(
+    "/static",
+    StaticFiles(directory=BASE_DIR / "static"),
+    name="static",          # url_for('static', path=...) uses this name
+)
+
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,6 +198,11 @@ async def _persist_after_response(state: AgentState, db_session_factory) -> None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
